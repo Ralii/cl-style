@@ -20,12 +20,9 @@
   (member key *pseudo-elements*))
 
 (defun output-style-tags ()
-  (loop for key being the hash-keys of style-map
-        using (hash-value value)
-        collect (loop for val in value
-                 collect (format nil "~a " val)
-                      into result
-                finally (return (format nil "<style> ~{~a~} </style>" result)))))
+  (let ((all-styles (loop for value being the hash-values of style-map
+                          append value)))
+    (format nil "<style>~%~{~a~%~}</style>" all-styles)))
 
 (defun purge ()
   (setf style-map (make-hash-table :test 'equal)))
@@ -60,19 +57,19 @@
         finally (return (format nil ".~a { ~{~a~^ ~} }" class-name result))))
 
 (defmacro defstyle (name styles)
-  (let ((class-name (format nil "cl-style-~A" (sxhash (princ-to-string styles))))
+  (let ((class (format nil "cl-style-~A" (sxhash (princ-to-string styles))))
         (non-media-css '())
         (all-css '()))
     (loop for (key val) on styles by #'cddr
-          if (or (eql :max-width key)
-                 (eql :min-width key))
-            do (push (handle-media-query class-name key val) all-css)
+          if (and (or (eql :max-width key)
+                      (eql :min-width key))
+                  (numberp val))
+            do (push (handle-media-query class key val) all-css)
           else if (or (pseudo-class-p key)
                       (pseudo-element-p key))
-            do (push (handle-pseudo class-name key val) all-css)
+            do (push (handle-pseudo class key val) all-css)
           else
             do (push `(,key . ,val) non-media-css))
-    (push (handle-non-media-query class-name non-media-css) all-css)
-    (setf (gethash class-name style-map) all-css)
-    `(defvar ,name
-       '(:class ,class-name))))
+    (push (handle-non-media-query class non-media-css) all-css)
+    (setf (gethash class style-map) all-css)
+    `(defparameter ,name ,class)))
